@@ -1,0 +1,115 @@
+---
+title: "User Manual: powerHLA"
+author: "SK"
+date: "Oct 20, 2021"
+output:
+  BiocStyle::html_document
+vignette: >
+  %\VignetteIndexEntry{User Manual: powerHLA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r setup, include = FALSE, warning = FALSE}
+knitr::opts_chunk$set(comment = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE)
+```
+
+
+
+```{r}
+require(powerHLA)
+require(rstan)
+require(knitr)
+require(ggplot2)
+rstan_options(auto_write = TRUE)
+```
+
+
+
+# Introduction
+
+
+
+# Input
+
+```{r}
+# We can simulate allele frequencies:
+K <- 15 # number of HLA alleles
+
+# total number of alleles from N/2 individuals in the population
+N <- 1000
+```
+
+
+```{r, fig.width=4, fig.height=3}
+# simulate allele frequencies
+af <- rexp(n = 15, rate = 1)
+af <- af/sum(af)
+af <- sort(af, decreasing = T)
+plot(af)
+```
+
+
+```{r, fig.width=4, fig.height=3}
+# and by muultiplying by N we get the allele counts
+ac <- rmultinom(n = 1, size = N, prob = af)
+ac <- as.vector(ac)
+plot(ac)
+```
+
+
+
+```{r}
+
+
+p <- lapply(X = c(100, 500, 1000, 5000), 
+            FUN = powerHLA::get_power_analysis,
+            K = K, 
+            af = af, 
+            B = 10^3, 
+            y = ac, 
+            rng_draws = 10^4, 
+            a = rep(x = 0.1, times = K))
+p <- do.call(rbind, p)
+
+# simulation cohort size
+Ns <- c(100, 500, 1000, 2000)
+
+
+power_data <- do.call(rbind, power_data)
+```
+
+
+```{r}
+ggplot(data = power_data)+
+  geom_errorbar(aes(x = allele, y = diff_mean, ymin = diff_X2.5., 
+                    ymax = diff_X97.5., group = B),
+             position = position_dodge(width = 0.3), 
+             col = "gray", width = 0.05)+
+  geom_point(aes(x = allele, y = diff_mean, group = B),
+             position = position_dodge(width = 0.3))+
+  scale_x_discrete(limits = paste0("K", 1:K))+
+  theme_bw()+
+  ylab(expression(delta))
+```
+
+
+
+
+```{r}
+powerHLA::get_multinomial_rng(K = 10, af = )
+```
+
+
+# Model
+<!-- `r Biocpkg("IgGeneUsage")` -->
+<!-- `r CRANpkg("ggplot")` -->
+
+# Session
+
+```{r}
+sessionInfo()
+```
