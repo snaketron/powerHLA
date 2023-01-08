@@ -10,7 +10,7 @@
 #' @export
 #'
 #' @examples
-get_power <- function(y, y_rng, a, rng_draws = 10^4) {
+get_power <- function(y, y_rng, a, rng_draws) {
   s <- rstan::sampling(
     object = stanmodels$dm,
     data = list(K=ncol(y_rng),
@@ -26,22 +26,30 @@ get_power <- function(y, y_rng, a, rng_draws = 10^4) {
     refresh = -1)
 
   # keep summary intervals
-  probs <- c(0.005, 0.025, 0.05, 0.25, 0.50, 0.75, 0.95, 0.975, 0.995)
+  probs <- c(0.005, 0.025, 0.05, 0.50, 0.95, 0.975, 0.995)
 
   # p_rng
   p_rng <- data.frame(rstan::summary(s, par = "p_rng", probs = probs)$summary)
+  p_rng$Rhat <- NULL
+  p_rng$n_eff <- NULL
   colnames(p_rng) <- paste0("p_rng_", colnames(p_rng))
 
   # delta_diff
   d_diff <- data.frame(rstan::summary(s, par = "d_diff", probs = probs)$summary)
+  d_diff$Rhat <- NULL
+  d_diff$n_eff <- NULL
   colnames(d_diff) <- paste0("diff_", colnames(d_diff))
 
   # delta_or
   d_or <- data.frame(rstan::summary(s, par = "d_or", probs = probs)$summary)
+  d_or$Rhat <- NULL
+  d_or$n_eff <- NULL
   colnames(d_or) <- paste0("or_", colnames(d_or))
 
   # delta_lor
   d_lor <- data.frame(rstan::summary(s, par = "d_lor", probs = probs)$summary)
+  d_lor$Rhat <- NULL
+  d_lor$n_eff <- NULL
   colnames(d_lor) <- paste0("lor_", colnames(d_lor))
 
   if(is.null(colnames(y_rng))) {
@@ -53,6 +61,7 @@ get_power <- function(y, y_rng, a, rng_draws = 10^4) {
 
   # resulting data.frame
   d <- cbind(p_rng, d_diff, d_or, d_lor)
+  d$obs_af <- rep(x = y/sum(y), times = nrow(y_rng))
 
   # return
   return(d)

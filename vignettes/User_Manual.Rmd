@@ -5,11 +5,13 @@ date: "Oct 20, 2021"
 output:
   BiocStyle::html_document
 vignette: >
+  %\VignetteEncoding{UTF-8}
   %\VignetteIndexEntry{User Manual: powerHLA}
   %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
-
 
 ```{r setup, include = FALSE, warning = FALSE}
 knitr::opts_chunk$set(comment = FALSE, 
@@ -17,96 +19,286 @@ knitr::opts_chunk$set(comment = FALSE,
                       message = FALSE)
 ```
 
-
-
 ```{r}
 require(powerHLA)
 require(rstan)
 require(knitr)
+require(parallel)
 require(ggplot2)
-rstan_options(auto_write = TRUE)
+require(ggforce)
+require(plot.matrix)
 ```
-
-
 
 # Introduction
 
+The 4 Mb major histocompatibility complex (MHC) region on chromosome 6,
+which encodes the human leukocyte antigen (HLA) genes, is highly
+polymorphic, and specific HLA genes have been implicated in increased
+risk for autoimmune and infectious diseases.
 
+Humans inherit two sets of parental HLA genes (alleles) from each HLA
+class (e.g. A, B, etc.). Hence, in a population of size $N$ there are
+$2N$ alleles from each HLA class. To determine whether a specific HLA
+allele is associated with increased risk/protection with respect to a
+certain disease, we compare the frequencies (prevalence, $\theta$) of
+that allele between a cohort of disease-positive individuals and a
+matching cohort of normal individuals. For quantitative identification
+of HLA alleles with enriched/depleted frequencies we need **statistical
+modeling**.
 
-# Input
+`r BiocStyle::Githubpkg(repo = "snaketron/powerHLA", pkg = "powerHLA")`
+helps the user address some of the following aspects of HLA association
+analyses:
 
-```{r}
-# We can simulate allele frequencies:
-K <- 15 # number of HLA alleles
+-   quantification of allele frequencies in a given population
+-   simulation of HLA allele counts data
+-   power analysis
 
-# total number of alleles from N/2 individuals in the population
-N <- 1000
-```
+# Methods
 
+## Simulation of HLA allele frequencies
 
-```{r, fig.width=4, fig.height=3}
-# simulate allele frequencies
-af <- rexp(n = 15, rate = 1)
-af <- af/sum(af)
-af <- sort(af, decreasing = T)
-plot(af)
-```
+In a population with $N$ individuals we have $2N$ alleles from a
+specific HLA class (e.g. HLA class A). The HLA alleles are distributed
+across $K$ HLA types (categories), i.e. we observe a vector of $K$
+counts $\vec{n}=n_1,n_2,...,n_K$, with $n_i \in \mathbb{Z}^{\geq0}$. HLA
+allele counts data is **compositional** as the HLA allele count $n_i$ is
+part of a whole $\sum_i^K n_i = 2N$.
 
+We can simulate HLA allele counts using a **multinomial distribution**
+with parameters $\vec{\theta}=\theta_1, \theta_2, ..., \theta_K$
+distributed on a K-simplex, with $\theta_i \in \mathbb{R}^{>0}$ and
+$\sum^{K}_i\theta_i=1$. To simulate HLA allele counts from a Multinomial
+distribution we have to provide two pieces of information:
 
-```{r, fig.width=4, fig.height=3}
-# and by muultiplying by N we get the allele counts
-ac <- rmultinom(n = 1, size = N, prob = af)
-ac <- as.vector(ac)
-plot(ac)
-```
+-   $\vec{\theta}$: allele frequencies
+-   $N$: population size = the number of alleles in the simulated
+    population
 
+For this task we will use HLA class A allele frequencies from a
+population of 3,456,066 unrelated donors with self-reported German
+descent who have been recruited by the German Bone Marrow Donor File
+(DKMS). This data was downloaded from The Allele Frequency Net Database
+(<http://www.allelefrequencies.net>).
 
-
-```{r}
-
-
-p <- lapply(X = c(100, 500, 1000, 5000), 
-            FUN = powerHLA::get_power_analysis,
-            K = K, 
-            af = af, 
-            B = 10^3, 
-            y = ac, 
-            rng_draws = 10^4, 
-            a = rep(x = 0.1, times = K))
-p <- do.call(rbind, p)
-
-# simulation cohort size
-Ns <- c(100, 500, 1000, 2000)
-
-
-power_data <- do.call(rbind, power_data)
-```
-
-
-```{r}
-ggplot(data = power_data)+
-  geom_errorbar(aes(x = allele, y = diff_mean, ymin = diff_X2.5., 
-                    ymax = diff_X97.5., group = B),
-             position = position_dodge(width = 0.3), 
-             col = "gray", width = 0.05)+
-  geom_point(aes(x = allele, y = diff_mean, group = B),
-             position = position_dodge(width = 0.3))+
-  scale_x_discrete(limits = paste0("K", 1:K))+
-  theme_bw()+
-  ylab(expression(delta))
-```
-
-
-
+The data is provided as part of
+`r BiocStyle::Githubpkg(repo = "snaketron/powerHLA", pkg = "powerHLA")`.
+Inspect it now using the next few lines of code:
 
 ```{r}
-powerHLA::get_multinomial_rng(K = 10, af = )
+# get from hla allele freq net
+data("dkms_de")
+knitr::kable(head(dkms_de))
+```
+
+Column `af` of dkms_de provides the allele frequencies ($\theta$) and
+column `n` the number of individuals in the dataset.
+
+```{r}
+# number of HLA alleles in population
+N <- dkms_de$n[1]*2
+
+# number of distinct HLA alleles (categories)
+K <- nrow(dkms_de)
+
+# allele frequencies
+theta <- dkms_de$af
+```
+
+The $\theta$s are reported as 4-digit fractions. Hence, rounding errors
+are possible. Check whether $\sum_i^K \theta_i = 1$.
+
+```{r}
+sum(theta)
+```
+
+To account for the missing $\theta=0.0056$, such that $\vec{\theta}$
+satisfies the criterion $\sum_i^K \theta_i = 1$, we add one additional
+HLA allele type called `other` with $\theta_{\text{other}}=0.0056$
+
+```{r}
+other <- data.frame(allele = "other",
+                    pop = dkms_de$pop[1],
+                    af = 1-sum(dkms_de$af),
+                    n = dkms_de$n[1])
+
+dkms_de <- rbind(dkms_de, other)
+
+sum(dkms_de$af)
+```
+
+Finally, we will update the variables K, N and theta
+
+```{r}
+# number of distinct HLA alleles (categories)
+K <- nrow(dkms_de)
+
+# number of HLA alleles in population
+N <- dkms_de$n[1]*2
+
+# allele frequencies
+theta <- dkms_de$af
+```
+
+We can also plot $\vec{\theta}$
+
+```{r, fig.width=4.5, fig.height=3}
+plot(theta, ylab = expression(theta), xlab = "HLA allele")
+```
+
+Additionally, we can estimate the allele counts, i.e. how many times
+each allele occurs in this datasets: ac = theta\*N.
+
+Due to the rounding error that was mentioned earlier, ac contains
+fractions instead of integers $\rightarrow$ let's round them up to the
+nearest one.
+
+```{r}
+ac <- round(x = theta*N, digits = 0)
+
+# we are off by 5 alleles, but we can live with this given that N>6*10^6 
+sum(ac)-N
+```
+
+Now lets simulate $B=10$ samples of HLA allele counts based on the 
+observed $\vec{\theta}$. The simulated populations will have the size
+$N=1000$ alleles ($=500$ individuals).
+
+```{r}
+rng <- powerHLA::get_multinomial_rng(af = theta, B = 10, N = 1000)
+```
+
+The variable `rng` contains $B=10$ rows (one for each sample) and $K$ 
+columns (one for each allele). The cells are simulated allele counts
+given $\vec{\theta}$ and $N$.
+
+```{r}
+dim(rng)
 ```
 
 
-# Model
-<!-- `r Biocpkg("IgGeneUsage")` -->
-<!-- `r CRANpkg("ggplot")` -->
+By comparing four of the simulated datasets with the observed allele counts 
+(`ac`) we see overall consistency.
+
+```{r, fig.width=6, fig.height=6}
+par(mfrow=c(2,2))
+plot(rng[1, ], ac)
+plot(rng[2, ], ac)
+plot(rng[3, ], ac)
+plot(rng[4, ], ac)
+```
+
+We can also visualize the matrix `rng` as a tile plot:
+
+```{r, fig.width=7, fig.height=5}
+par(mar=c(5.1, 4.1, 4.1, 4.1))
+plot(log2(rng))
+```
+
+## Quantification of allele frequencies in a sample
+
+
+## Power analysis
+
+<!-- ```{r} -->
+
+<!-- p <- mclapply( -->
+
+<!--   X = c(100, 500, 1000, 5000),  -->
+
+<!--   FUN = powerHLA::get_power_analysis, -->
+
+<!--   K = K,  -->
+
+<!--   af = af,  -->
+
+<!--   B = 10^3,  -->
+
+<!--   y = ac,  -->
+
+<!--   rng_draws = 5*10^3,  -->
+
+<!--   a = rep(x = 0.1, times = K), -->
+
+<!--   mc.cores = 2) -->
+
+<!-- p <- do.call(rbind, p) -->
+
+<!-- ``` -->
+
+<!-- ```{r, fig.width=7, fig.height=6} -->
+
+<!-- ggplot(data = p)+ -->
+
+<!--   facet_wrap(facets = ~N)+ -->
+
+<!--   geom_errorbar(aes(x = allele, y = diff_mean, ymin = diff_X2.5.,  -->
+
+<!--                     ymax = diff_X97.5., group = B), -->
+
+<!--              position = position_dodge(width = 0.3),  -->
+
+<!--              col = "gray", width = 0.05)+ -->
+
+<!--   geom_point(aes(x = allele, y = diff_mean, group = B), -->
+
+<!--              position = position_dodge(width = 0.3), size = 0.25)+ -->
+
+<!--   scale_x_discrete(limits = paste0("K", 1:K))+ -->
+
+<!--   theme_bw(base_size = 10)+ -->
+
+<!--   ylab(expression(delta)) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- p$diff_effect_HDI95 <- ifelse(test = p$diff_X2.5.<=0 & p$diff_X97.5.>=0, yes = 0, no = 1) -->
+
+<!-- p$diff_min_effect_95 <- apply(X = p[,c("diff_X2.5.", "diff_X97.5.")], MARGIN = 1,  -->
+
+<!--                               FUN = function(x) {return(min(abs(x)))})*p$diff_effect_HDI95 -->
+
+<!-- q <- aggregate(diff_effect_HDI95~N+allele, data = p, FUN = sum) -->
+
+<!-- q$diff_effect_HDI95_pct <- q$diff_effect_HDI95/max(p$B)*100 -->
+
+<!-- ``` -->
+
+<!-- ```{r, fig.width=6, fig.height=3} -->
+
+<!-- ggplot(data = q)+ -->
+
+<!--   geom_point(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+ -->
+
+<!--   geom_line(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+ -->
+
+<!--   ylim(c(0, 100))+ -->
+
+<!--   theme_bw()+ -->
+
+<!--   ylab(label = "% effect found") -->
+
+<!-- ``` -->
+
+<!-- ```{r, fig.width=7, fig.height=6} -->
+
+<!-- ggplot(data = p)+ -->
+
+<!--   facet_wrap(facets = ~N)+ -->
+
+<!--   geom_sina(aes(x = allele, y = diff_min_effect_95), size = 0.25)+ -->
+
+<!--   scale_x_discrete(limits = paste0("K", 1:K))+ -->
+
+<!--   theme_bw(base_size = 10)+ -->
+
+<!--   ylab(expression("|"*delta*"|"[min]))+ -->
+
+<!--   scale_y_log10() -->
+
+<!-- ``` -->
 
 # Session
 
