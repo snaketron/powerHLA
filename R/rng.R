@@ -4,9 +4,9 @@
 #' This function simulates B samples (rows of counts of matrix y) from
 #' a multivariate distribution. Each count belongs to one of K categories
 #' (K columns of matrix y). The data is simulated based on the given
-#' simplex af and N number of total alleles.
+#' simplex theta and N number of total alleles.
 #'
-#' @param af vector, allele frequencies, sum(af)=1
+#' @param theta vector, allele frequencies, sum(theta)=1
 #' @param B integer, number of simulated samples
 #' @param N integer, number of alleles in simulated sample
 #'
@@ -14,14 +14,14 @@
 #' @export
 #'
 #' @examples
-#' get_multinomial_rng(K=10, af=rep(0.1, times = 10), B=100, N=1000)
-get_multinomial_rng <- function(af, B, N) {
+#' get_multinomial_rng(K=10, theta=rep(0.1, times = 10), B=100, N=1000)
+get_multinomial_rng <- function(theta, B, N) {
 
-  K <- length(af)
+  K <- length(theta)
 
   s <- rstan::sampling(
     object = stanmodels$rng,
-    data = list(K=K, N=N, af=af),
+    data = list(K=K, N=N, theta=theta),
     chains = 1,
     cores = 1,
     iter = B,
@@ -30,14 +30,14 @@ get_multinomial_rng <- function(af, B, N) {
     refresh = -1)
 
   # extract rng
-  y_rng <- rstan::extract(
+  rng_gamma <- rstan::extract(
     object = s,
-    par = "y")$y
+    par = "gamma")$gamma
 
   # set dimension names
   dn <- vector(mode = "list", length = 2)
   names(dn) <- c("B", "K")
-  dimnames(y_rng) <- dn
+  dimnames(rng_gamma) <- dn
 
-  return(y_rng)
+  return(rng_gamma)
 }

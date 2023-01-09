@@ -3,6 +3,8 @@
 export(get_multinomial_rng)
 export(get_power)
 export(get_power_analysis)
+export(get_power_run)
+export(get_power_summary)
 import(Rcpp)
 import(methods)
 importFrom(rstan, sampling)

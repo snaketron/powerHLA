@@ -147,158 +147,142 @@ plot(theta, ylab = expression(theta), xlab = "HLA allele")
 ```
 
 Additionally, we can estimate the allele counts, i.e. how many times
-each allele occurs in this datasets: ac = theta\*N.
+each allele occurs in this datasets: $\gamma = \theta \cdot N$.
 
-Due to the rounding error that was mentioned earlier, ac contains
+Due to the rounding error that was mentioned earlier, $\gamma$ contains
 fractions instead of integers $\rightarrow$ let's round them up to the
 nearest one.
 
 ```{r}
-ac <- round(x = theta*N, digits = 0)
+gamma <- round(x = theta*N, digits = 0)
 
-# we are off by 5 alleles, but we can live with this given that N>6*10^6 
-sum(ac)-N
+# we are off by 5 alleles, but we can live with 
+# this given that N > 6*10^6 
+sum(gamma)-N
 ```
 
-Now lets simulate $B=10$ samples of HLA allele counts based on the 
-observed $\vec{\theta}$. The simulated populations will have the size
-$N=1000$ alleles ($=500$ individuals).
+Now lets simulate $B=10$ samples of HLA allele counts based on the observed 
+$\vec{\theta}$. The simulated populations will have size similar to the size 
+of the original population $N=7*10^6$ alleles ($3.5*10^6$ individuals).
 
 ```{r}
-rng <- powerHLA::get_multinomial_rng(af = theta, B = 10, N = 1000)
+rng_gamma <- powerHLA::get_multinomial_rng(theta = theta, B = 10, N = 6912132)
 ```
 
-The variable `rng` contains $B=10$ rows (one for each sample) and $K$ 
+The variable `rng_gamma` contains $B=10$ rows (one for each sample) and $K$ 
 columns (one for each allele). The cells are simulated allele counts
 given $\vec{\theta}$ and $N$.
 
 ```{r}
-dim(rng)
+dim(rng_gamma)
 ```
 
-
-By comparing four of the simulated datasets with the observed allele counts 
-(`ac`) we see overall consistency.
+As anticipated, we see an overall agreement between the $\vec{\gamma}$ from 
+`rng_gamma` and the observed (background) $\vec{\gamma}$
 
 ```{r, fig.width=6, fig.height=6}
 par(mfrow=c(2,2))
-plot(rng[1, ], ac)
-plot(rng[2, ], ac)
-plot(rng[3, ], ac)
-plot(rng[4, ], ac)
+plot(rng_gamma[1, ], gamma);abline(a = 0, b = 1);
+plot(rng_gamma[2, ], gamma);abline(a = 0, b = 1);
+plot(rng_gamma[3, ], gamma);abline(a = 0, b = 1);
+plot(rng_gamma[4, ], gamma);abline(a = 0, b = 1);
 ```
 
-We can also visualize the matrix `rng` as a tile plot:
+We can also visualize the matrix `rng_gamma` as a tile plot:
 
 ```{r, fig.width=7, fig.height=5}
 par(mar=c(5.1, 4.1, 4.1, 4.1))
-plot(log2(rng))
+plot(log10(rng_gamma))
 ```
 
 ## Quantification of allele frequencies in a sample
 
+```{r}
+
+```
+
+
 
 ## Power analysis
 
-<!-- ```{r} -->
+Power is the probability of detecting an effect ($\delta$), given that the 
+effect is really there. Performing power analysis is essential to determine 
+the necessary number of subjects needed to detect an effect of a given size.
 
-<!-- p <- mclapply( -->
+To perform power analysis with powerHLA the user has to provide the following
+pieces of information:
 
-<!--   X = c(100, 500, 1000, 5000),  -->
+  * effect size $\delta$: e.g. $\delta=0.1$ (1% change in allele frequency)
+  * background allele frequencies: $\vec{\theta}$
+  * background allele counts: $\vec{\gamma}$
+  * number of simulations to determine power: $B$
+  * number of posterior draws: $P$
+  * Dirichlet prior: $\vec{\alpha}$
+  * population size(s): $N$ (number of alleles in simulated population)
 
-<!--   FUN = powerHLA::get_power_analysis, -->
+```{r}
 
-<!--   K = K,  -->
+p <- powerHLA::get_power_analysis(
+  ns = c(100, 500, 1000),
+  theta = theta,
+  gamma = gamma,
+  B = 500,
+  rng_draws = 2000,
+  a = rep(x = 0.1, times = K),
+  cores = 3,
+  verbose = T)
 
-<!--   af = af,  -->
+```
 
-<!--   B = 10^3,  -->
+```{r, fig.width=8, fig.height=6}
 
-<!--   y = ac,  -->
+ggplot(data = p)+
+  facet_wrap(facets = ~N, ncol = 2)+
+  geom_errorbar(aes(x = allele, y = diff_mean, ymin = diff_X2.5.,
+                    ymax = diff_X97.5., group = B),
+             position = position_dodge(width = 0.3),
+             col = "gray", width = 0.05)+
+  geom_point(aes(x = allele, y = diff_mean, group = B),
+             position = position_dodge(width = 0.3), size = 0.25)+
+  scale_x_discrete(limits = paste0("K", 1:K), 
+                   breaks = paste0("K", seq(from = 1, to = K, by = 4)))+
+  theme_bw(base_size = 10)+
+  ylab(expression(delta))
 
-<!--   rng_draws = 5*10^3,  -->
+```
 
-<!--   a = rep(x = 0.1, times = K), -->
+```{r}
 
-<!--   mc.cores = 2) -->
+p$diff_effect_HDI95 <- ifelse(test = p$diff_X2.5.<=0 & p$diff_X97.5.>=0, yes = 0, no = 1)
+p$diff_min_effect_95 <- apply(X = p[,c("diff_X2.5.", "diff_X97.5.")], MARGIN = 1,
+                              FUN = function(x) {return(min(abs(x)))})*p$diff_effect_HDI95
+q <- aggregate(diff_effect_HDI95~N+allele, data = p, FUN = sum)
+q$diff_effect_HDI95_pct <- q$diff_effect_HDI95/max(p$B)*100
 
-<!-- p <- do.call(rbind, p) -->
+```
 
-<!-- ``` -->
+```{r, fig.width=6, fig.height=3}
 
-<!-- ```{r, fig.width=7, fig.height=6} -->
+ggplot(data = q)+
+  geom_point(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+
+  geom_line(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+
+  ylim(c(0, 100))+
+  theme_bw()+
+  ylab(label = "% effect found")
 
-<!-- ggplot(data = p)+ -->
+```
 
-<!--   facet_wrap(facets = ~N)+ -->
+```{r, fig.width=7, fig.height=6}
 
-<!--   geom_errorbar(aes(x = allele, y = diff_mean, ymin = diff_X2.5.,  -->
+ggplot(data = p)+
+  facet_wrap(facets = ~N)+
+  geom_sina(aes(x = allele, y = diff_min_effect_95), size = 0.25)+
+  scale_x_discrete(limits = paste0("K", 1:K))+
+  theme_bw(base_size = 10)+
+  ylab(expression("|"*delta*"|"[min]))+
+  scale_y_log10()
 
-<!--                     ymax = diff_X97.5., group = B), -->
-
-<!--              position = position_dodge(width = 0.3),  -->
-
-<!--              col = "gray", width = 0.05)+ -->
-
-<!--   geom_point(aes(x = allele, y = diff_mean, group = B), -->
-
-<!--              position = position_dodge(width = 0.3), size = 0.25)+ -->
-
-<!--   scale_x_discrete(limits = paste0("K", 1:K))+ -->
-
-<!--   theme_bw(base_size = 10)+ -->
-
-<!--   ylab(expression(delta)) -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-
-<!-- p$diff_effect_HDI95 <- ifelse(test = p$diff_X2.5.<=0 & p$diff_X97.5.>=0, yes = 0, no = 1) -->
-
-<!-- p$diff_min_effect_95 <- apply(X = p[,c("diff_X2.5.", "diff_X97.5.")], MARGIN = 1,  -->
-
-<!--                               FUN = function(x) {return(min(abs(x)))})*p$diff_effect_HDI95 -->
-
-<!-- q <- aggregate(diff_effect_HDI95~N+allele, data = p, FUN = sum) -->
-
-<!-- q$diff_effect_HDI95_pct <- q$diff_effect_HDI95/max(p$B)*100 -->
-
-<!-- ``` -->
-
-<!-- ```{r, fig.width=6, fig.height=3} -->
-
-<!-- ggplot(data = q)+ -->
-
-<!--   geom_point(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+ -->
-
-<!--   geom_line(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+ -->
-
-<!--   ylim(c(0, 100))+ -->
-
-<!--   theme_bw()+ -->
-
-<!--   ylab(label = "% effect found") -->
-
-<!-- ``` -->
-
-<!-- ```{r, fig.width=7, fig.height=6} -->
-
-<!-- ggplot(data = p)+ -->
-
-<!--   facet_wrap(facets = ~N)+ -->
-
-<!--   geom_sina(aes(x = allele, y = diff_min_effect_95), size = 0.25)+ -->
-
-<!--   scale_x_discrete(limits = paste0("K", 1:K))+ -->
-
-<!--   theme_bw(base_size = 10)+ -->
-
-<!--   ylab(expression("|"*delta*"|"[min]))+ -->
-
-<!--   scale_y_log10() -->
-
-<!-- ``` -->
+```
 
 # Session
 

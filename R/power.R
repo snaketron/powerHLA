@@ -1,23 +1,23 @@
 
 #' get_power
 #'
-#' @param y, numeric vector, Multinomially distributed sample (background)
-#' @param y_rng, numeric matrix, Multinomially distributed samples (rows)
-#' @param a, numeric vector, Dirichlet distribution parameters (alpha)
+#' @param gamma, numeric vector, Multinomially distributed sample (background)
+#' @param rng_gamma, numeric matrix, Multinomially distributed samples (rows)
+#' @param alpha, numeric vector, Dirichlet distribution parameters (alpha)
 #' @param rng_draws, integer, number of posterior draws (default 10,000)
 #'
 #' @return data.frame of posterior summaries
 #' @export
 #'
 #' @examples
-get_power <- function(y, y_rng, a, rng_draws) {
+get_power <- function(gamma, rng_gamma, alpha, rng_draws) {
   s <- rstan::sampling(
     object = stanmodels$dm,
-    data = list(K=ncol(y_rng),
-                B=nrow(y_rng),
-                y_rng=y_rng,
-                y = y,
-                a = a),
+    data = list(K=ncol(rng_gamma),
+                B=nrow(rng_gamma),
+                rng_gamma=rng_gamma,
+                gamma = gamma,
+                alpha = alpha),
     chains = 1,
     cores = 1,
     iter = rng_draws,
@@ -52,16 +52,16 @@ get_power <- function(y, y_rng, a, rng_draws) {
   d_lor$n_eff <- NULL
   colnames(d_lor) <- paste0("lor_", colnames(d_lor))
 
-  if(is.null(colnames(y_rng))) {
-    colnames(y_rng) <- paste0("K", 1:ncol(y_rng))
+  if(is.null(colnames(rng_gamma))) {
+    colnames(rng_gamma) <- paste0("K", 1:ncol(rng_gamma))
   }
-  d_lor$allele <- rep(x = colnames(y_rng), times = nrow(y_rng))
-  d_lor$B <- rep(x = 1:nrow(y_rng), each = ncol(y_rng))
-  d_lor$N <- sum(y_rng[1,])
+  d_lor$allele <- rep(x = colnames(rng_gamma), times = nrow(rng_gamma))
+  d_lor$B <- rep(x = 1:nrow(rng_gamma), each = ncol(rng_gamma))
+  d_lor$N <- sum(rng_gamma[1,])
 
   # resulting data.frame
   d <- cbind(p_rng, d_diff, d_or, d_lor)
-  d$obs_af <- rep(x = y/sum(y), times = nrow(y_rng))
+  d$obs_theta <- rep(x = gamma/sum(gamma), times = nrow(rng_gamma))
 
   # return
   return(d)
@@ -69,50 +69,131 @@ get_power <- function(y, y_rng, a, rng_draws) {
 
 
 
-
-
-#' get_power_analysis
+#' get_power_run
 #'
-#' @param N, integer, number of alleles in study
-#' @param K, integer, number of categories
-#' @param af, vector of reals, allele frequencies of the simulated samples
+#' @param N, integer, total number of alleles in simulated samples
+#' @param theta, vector of reals, allele frequencies of the simulated samples
 #' @param B, integer, number of simulations to use
 #' @param y, vector of integers, allele counts of the background sample
 #' @param a, vector of reals, Dirichlet distribution parameters (alpha)
 #' @param rng_draws, integer, number of posterior draws (default 10,000)
+#' @param cores, integer, number of cores for multicore execution
 #'
 #' @return
 #' @export
 #'
 #' @examples
-get_power_analysis <- function(N, K, af, B, y, a,
-                               rng_draws = 10^4,
-                               verbose = T) {
+get_power_run <- function(N,
+                          theta,
+                          gamma,
+                          alpha,
+                          B,
+                          rng_draws = 10^4) {
 
-  if(verbose) {
-    base::message("1) rng")
-  }
+  K <- length(theta)
 
   # rng
-  y_rng <- powerHLA::get_multinomial_rng(
-    K = K,
-    af = af,
+  rng_gamma <- powerHLA::get_multinomial_rng(
+    theta = theta,
     B = B,
     N = N)
-  colnames(y_rng) <- paste0("K", 1:ncol(y_rng))
+  colnames(rng_gamma) <- paste0("K", 1:ncol(rng_gamma))
 
-  if(verbose) {
-    base::message("1) power comp.")
-  }
 
   # power
   p <- powerHLA::get_power(
-    y = y,
-    y_rng = y_rng,
-    a = a,
+    gamma = gamma,
+    rng_gamma = rng_gamma,
+    alpha = alpha,
     rng_draws = rng_draws)
 
   # return
   return(p)
+}
+
+
+#' get_power_analysis
+#'
+#' @param ns, integer vector, total number of alleles in simulated samples
+#' @param theta, vector of reals, allele frequencies of the simulated samples
+#' @param B, integer, number of simulations to use
+#' @param y, vector of integers, allele counts of the background sample
+#' @param a, vector of reals, Dirichlet distribution parameters (alpha)
+#' @param rng_draws, integer, number of posterior draws (default 10,000)
+#' @param cores, integer, number of cores for multicore execution
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_power_analysis <- function(ns,
+                               theta,
+                               gamma,
+                               alpha,
+                               B,
+                               rng_draws = 10^4,
+                               cores = 1,
+                               verbose = T) {
+
+  # schedule cores
+  future::plan(future::multisession, workers = cores)
+
+  # loop over ns and execute get_power_run
+  o <- future.apply::future_lapply(
+    X = ns,
+    FUN = get_power_run,
+    theta = theta,
+    gamma = gamma,
+    alpha = alpha,
+    B = B,
+    rng_draws = rng_draws,
+    future.seed = TRUE)
+
+  # list names -> ns entries
+  names(o) <- ns
+
+  # return
+  return(o)
+}
+
+
+
+
+#' get_power_summary
+#'
+#' @param p, object returned by function get_power_analysis
+#' @param hdi_level, numeric between 0 and 1 (default=0.95), that defines the
+#' highest density interval to consider when summarizing parameter posteriors
+#'
+#' @return data.frame
+#' @export
+#'
+#' @examples
+#' get_power_summary(p)
+get_power_summary <- function(p, hdi_level = 0.95) {
+
+  # min(abs(x))
+  get_min_abs <- function(x) {
+    return(min(abs(x)))
+  }
+
+  # list to data.frame
+  w <- do.call(rbind, p)
+
+  # check if effect is detected
+  w$diff_effect_HDI95 <- ifelse(test = w$diff_X2.5.<=0&
+                                  w$diff_X97.5.>=0,
+                                yes = 0, no = 1)
+
+  # compute minimum effect
+  w$diff_min_effect_95 <- apply(
+    X = w[,c("diff_X2.5.", "diff_X97.5.")], MARGIN = 1,
+    FUN = get_min_abs)*w$diff_effect_HDI95
+
+  # compute power
+  s <- aggregate(diff_effect_HDI95~N+allele, data = w, FUN = sum)
+  s$diff_effect_HDI95_pct <- s$diff_effect_HDI95/max(w$B)*100
+
+  return (s)
 }
 

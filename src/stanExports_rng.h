@@ -42,7 +42,7 @@ class model_rng
 private:
         int K;
         int N;
-        vector_d af;
+        vector_d theta;
 public:
     model_rng(stan::io::var_context& context__,
         std::ostream* pstream__ = 0)
@@ -88,16 +88,16 @@ public:
             N = vals_i__[pos__++];
             check_greater_or_equal(function__, "N", N, 0);
             current_statement_begin__ = 4;
-            validate_non_negative_index("af", "K", K);
-            context__.validate_dims("data initialization", "af", "vector_d", context__.to_vec(K));
-            af = Eigen::Matrix<double, Eigen::Dynamic, 1>(K);
-            vals_r__ = context__.vals_r("af");
+            validate_non_negative_index("theta", "K", K);
+            context__.validate_dims("data initialization", "theta", "vector_d", context__.to_vec(K));
+            theta = Eigen::Matrix<double, Eigen::Dynamic, 1>(K);
+            vals_r__ = context__.vals_r("theta");
             pos__ = 0;
-            size_t af_j_1_max__ = K;
-            for (size_t j_1__ = 0; j_1__ < af_j_1_max__; ++j_1__) {
-                af(j_1__) = vals_r__[pos__++];
+            size_t theta_j_1_max__ = K;
+            for (size_t j_1__ = 0; j_1__ < theta_j_1_max__; ++j_1__) {
+                theta(j_1__) = vals_r__[pos__++];
             }
-            stan::math::check_simplex(function__, "af", af);
+            stan::math::check_simplex(function__, "theta", theta);
             // initialize transformed data variables
             // execute transformed data statements
             // validate transformed data
@@ -167,7 +167,7 @@ public:
     }
     void get_param_names(std::vector<std::string>& names__) const {
         names__.resize(0);
-        names__.push_back("y");
+        names__.push_back("gamma");
     }
     void get_dims(std::vector<std::vector<size_t> >& dimss__) const {
         dimss__.resize(0);
@@ -201,17 +201,17 @@ public:
             if (!include_gqs__) return;
             // declare and define generated quantities
             current_statement_begin__ = 8;
-            validate_non_negative_index("y", "K", K);
-            std::vector<int> y(K, int(0));
-            stan::math::fill(y, std::numeric_limits<int>::min());
+            validate_non_negative_index("gamma", "K", K);
+            std::vector<int> gamma(K, int(0));
+            stan::math::fill(gamma, std::numeric_limits<int>::min());
             // generated quantities statements
             current_statement_begin__ = 9;
-            stan::math::assign(y, multinomial_rng(af, N, base_rng__));
+            stan::math::assign(gamma, multinomial_rng(theta, N, base_rng__));
             // validate, write generated quantities
             current_statement_begin__ = 8;
-            size_t y_k_0_max__ = K;
-            for (size_t k_0__ = 0; k_0__ < y_k_0_max__; ++k_0__) {
-                vars__.push_back(y[k_0__]);
+            size_t gamma_k_0_max__ = K;
+            for (size_t k_0__ = 0; k_0__ < gamma_k_0_max__; ++k_0__) {
+                vars__.push_back(gamma[k_0__]);
             }
         } catch (const std::exception& e) {
             stan::lang::rethrow_located(e, current_statement_begin__, prog_reader__());
@@ -247,10 +247,10 @@ public:
         if (include_tparams__) {
         }
         if (!include_gqs__) return;
-        size_t y_k_0_max__ = K;
-        for (size_t k_0__ = 0; k_0__ < y_k_0_max__; ++k_0__) {
+        size_t gamma_k_0_max__ = K;
+        for (size_t k_0__ = 0; k_0__ < gamma_k_0_max__; ++k_0__) {
             param_name_stream__.str(std::string());
-            param_name_stream__ << "y" << '.' << k_0__ + 1;
+            param_name_stream__ << "gamma" << '.' << k_0__ + 1;
             param_names__.push_back(param_name_stream__.str());
         }
     }
@@ -262,10 +262,10 @@ public:
         if (include_tparams__) {
         }
         if (!include_gqs__) return;
-        size_t y_k_0_max__ = K;
-        for (size_t k_0__ = 0; k_0__ < y_k_0_max__; ++k_0__) {
+        size_t gamma_k_0_max__ = K;
+        for (size_t k_0__ = 0; k_0__ < gamma_k_0_max__; ++k_0__) {
             param_name_stream__.str(std::string());
-            param_name_stream__ << "y" << '.' << k_0__ + 1;
+            param_name_stream__ << "gamma" << '.' << k_0__ + 1;
             param_names__.push_back(param_name_stream__.str());
         }
     }

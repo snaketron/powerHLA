@@ -4,11 +4,9 @@
 \alias{get_multinomial_rng}
 \title{get_multinomial_rng}
 \usage{
-get_multinomial_rng(K, af, B, N)
+get_multinomial_rng(af, B, N)
 }
 \arguments{
-\item{K}{integer, number of HLA alleles (categories), larger than 0}
-
 \item{af}{vector, allele frequencies, sum(af)=1}
 
 \item{B}{integer, number of simulated samples}

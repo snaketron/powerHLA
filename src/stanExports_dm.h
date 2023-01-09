@@ -42,9 +42,9 @@ class model_dm
 private:
         int K;
         int B;
-        std::vector<std::vector<int> > y_rng;
-        std::vector<int> y;
-        vector_d a;
+        std::vector<std::vector<int> > rng_gamma;
+        std::vector<int> gamma;
+        vector_d alpha;
 public:
     model_dm(stan::io::var_context& context__,
         std::ostream* pstream__ = 0)
@@ -90,38 +90,38 @@ public:
             B = vals_i__[pos__++];
             check_greater_or_equal(function__, "B", B, 0);
             current_statement_begin__ = 4;
-            validate_non_negative_index("y_rng", "B", B);
-            validate_non_negative_index("y_rng", "K", K);
-            context__.validate_dims("data initialization", "y_rng", "int", context__.to_vec(B,K));
-            y_rng = std::vector<std::vector<int> >(B, std::vector<int>(K, int(0)));
-            vals_i__ = context__.vals_i("y_rng");
+            validate_non_negative_index("rng_gamma", "B", B);
+            validate_non_negative_index("rng_gamma", "K", K);
+            context__.validate_dims("data initialization", "rng_gamma", "int", context__.to_vec(B,K));
+            rng_gamma = std::vector<std::vector<int> >(B, std::vector<int>(K, int(0)));
+            vals_i__ = context__.vals_i("rng_gamma");
             pos__ = 0;
-            size_t y_rng_k_0_max__ = B;
-            size_t y_rng_k_1_max__ = K;
-            for (size_t k_1__ = 0; k_1__ < y_rng_k_1_max__; ++k_1__) {
-                for (size_t k_0__ = 0; k_0__ < y_rng_k_0_max__; ++k_0__) {
-                    y_rng[k_0__][k_1__] = vals_i__[pos__++];
+            size_t rng_gamma_k_0_max__ = B;
+            size_t rng_gamma_k_1_max__ = K;
+            for (size_t k_1__ = 0; k_1__ < rng_gamma_k_1_max__; ++k_1__) {
+                for (size_t k_0__ = 0; k_0__ < rng_gamma_k_0_max__; ++k_0__) {
+                    rng_gamma[k_0__][k_1__] = vals_i__[pos__++];
                 }
             }
             current_statement_begin__ = 5;
-            validate_non_negative_index("y", "K", K);
-            context__.validate_dims("data initialization", "y", "int", context__.to_vec(K));
-            y = std::vector<int>(K, int(0));
-            vals_i__ = context__.vals_i("y");
+            validate_non_negative_index("gamma", "K", K);
+            context__.validate_dims("data initialization", "gamma", "int", context__.to_vec(K));
+            gamma = std::vector<int>(K, int(0));
+            vals_i__ = context__.vals_i("gamma");
             pos__ = 0;
-            size_t y_k_0_max__ = K;
-            for (size_t k_0__ = 0; k_0__ < y_k_0_max__; ++k_0__) {
-                y[k_0__] = vals_i__[pos__++];
+            size_t gamma_k_0_max__ = K;
+            for (size_t k_0__ = 0; k_0__ < gamma_k_0_max__; ++k_0__) {
+                gamma[k_0__] = vals_i__[pos__++];
             }
             current_statement_begin__ = 6;
-            validate_non_negative_index("a", "K", K);
-            context__.validate_dims("data initialization", "a", "vector_d", context__.to_vec(K));
-            a = Eigen::Matrix<double, Eigen::Dynamic, 1>(K);
-            vals_r__ = context__.vals_r("a");
+            validate_non_negative_index("alpha", "K", K);
+            context__.validate_dims("data initialization", "alpha", "vector_d", context__.to_vec(K));
+            alpha = Eigen::Matrix<double, Eigen::Dynamic, 1>(K);
+            vals_r__ = context__.vals_r("alpha");
             pos__ = 0;
-            size_t a_j_1_max__ = K;
-            for (size_t j_1__ = 0; j_1__ < a_j_1_max__; ++j_1__) {
-                a(j_1__) = vals_r__[pos__++];
+            size_t alpha_j_1_max__ = K;
+            for (size_t j_1__ = 0; j_1__ < alpha_j_1_max__; ++j_1__) {
+                alpha(j_1__) = vals_r__[pos__++];
             }
             // initialize transformed data variables
             // execute transformed data statements
@@ -276,13 +276,13 @@ public:
             stan::math::fill(d_lor, DUMMY_VAR__);
             // generated quantities statements
             current_statement_begin__ = 17;
-            stan::math::assign(p, dirichlet_rng(to_vector(y), base_rng__));
+            stan::math::assign(p, dirichlet_rng(to_vector(gamma), base_rng__));
             current_statement_begin__ = 20;
             for (int b = 1; b <= B; ++b) {
                 current_statement_begin__ = 21;
                 stan::model::assign(p_rng, 
                             stan::model::cons_list(stan::model::index_uni(b), stan::model::nil_index_list()), 
-                            dirichlet_rng(add(to_vector(stan::model::rvalue(y_rng, stan::model::cons_list(stan::model::index_uni(b), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "y_rng")), a), base_rng__), 
+                            dirichlet_rng(add(to_vector(stan::model::rvalue(rng_gamma, stan::model::cons_list(stan::model::index_uni(b), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "rng_gamma")), alpha), base_rng__), 
                             "assigning variable p_rng");
                 current_statement_begin__ = 22;
                 stan::model::assign(d_or, 
