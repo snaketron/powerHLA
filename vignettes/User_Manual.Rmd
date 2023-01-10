@@ -27,6 +27,7 @@ require(parallel)
 require(ggplot2)
 require(ggforce)
 require(plot.matrix)
+require(patchwork)
 ```
 
 # Introduction
@@ -54,9 +55,8 @@ analyses:
 -   simulation of HLA allele counts data
 -   power analysis
 
-# Methods
 
-## Simulation of HLA allele frequencies
+# Simulation of HLA allele frequencies
 
 In a population with $N$ individuals we have $2N$ alleles from a
 specific HLA class (e.g. HLA class A). The HLA alleles are distributed
@@ -195,7 +195,7 @@ par(mar=c(5.1, 4.1, 4.1, 4.1))
 plot(log10(rng_gamma))
 ```
 
-## Quantification of allele frequencies in a sample
+# Quantification of allele frequencies in a sample
 
 ```{r}
 
@@ -203,7 +203,7 @@ plot(log10(rng_gamma))
 
 
 
-## Power analysis
+# Power analysis
 
 Power is the probability of detecting an effect ($\delta$), given that the 
 effect is really there. Performing power analysis is essential to determine 
@@ -220,19 +220,140 @@ pieces of information:
   * Dirichlet prior: $\vec{\alpha}$
   * population size(s): $N$ (number of alleles in simulated population)
 
-```{r}
+## Power analysis with varing effect size
+
+### Power analysis with $\delta$ = 0
+We anticipate no 
+
+```{r, eval=F}
 
 p <- powerHLA::get_power_analysis(
-  ns = c(100, 500, 1000),
+  ns = c(10^2, 10^3, 10^4, 10^5, 10^6),
   theta = theta,
   gamma = gamma,
   B = 500,
-  rng_draws = 2000,
-  a = rep(x = 0.1, times = K),
+  rng_draws = 5000,
+  alpha = rep(x = 1, times = K),
   cores = 3,
   verbose = T)
 
+save(p, file = "../working_dir/p_b500_rng5000.RData")
+
 ```
+
+
+```{r}
+s <- powerHLA::get_power_summary(p = p)
+```
+
+
+
+```{r, fig.width=7, fig.height=3}
+
+(ggplot(data = s)+
+   geom_point(aes(y = tp_HDI95, x = N, col = allele))+
+   geom_line(aes(y = tp_HDI95, x = N, col = allele))+
+   ylim(c(0, 100))+
+   theme_bw()+
+   theme(legend.position = "none")+
+   ylab(label = "FP")+
+   scale_x_log10()+
+   ggtitle(label = expression(delta["95% HDI"]!="0"))+
+   annotation_logticks(base = 10, sides = "b"))|
+  (ggplot(data = s)+
+     geom_point(aes(y = tp_HDI99, x = N, col = allele))+
+     geom_line(aes(y = tp_HDI99, x = N, col = allele))+
+     ylim(c(0, 100))+
+     theme_bw()+
+     theme(legend.position = "none")+
+     ylab(label = "FP")+
+     scale_x_log10()+
+     ggtitle(label = expression(delta["99% HDI"]!="0"))+
+     annotation_logticks(base = 10, sides = "b"))
+
+```
+
+### Power analysis with $\delta$ \in [0.01, 0.02, 0.03, 0.04, 0.05]
+
+* $\delta=0.01: \theta_1 = 0.2839 \rightarrow \theta_1 = 0.2739$
+* $\delta=0.02: \theta_1 = 0.2839 \rightarrow \theta_1 = 0.2639$
+* $\delta=0.03: \theta_1 = 0.2839 \rightarrow \theta_1 = 0.2539$
+* $\delta=0.04: \theta_1 = 0.2839 \rightarrow \theta_1 = 0.2439$
+* $\delta=0.05: \theta_1 = 0.2839 \rightarrow \theta_1 = 0.2339$
+
+```{r}
+deltas <- c(0.00, 0.01, 0.02, 0.03, 0.04, 0.05)
+hlas <- c(1, 2, 4, 5) # 4 HLAs with high theta
+
+power_data <- vector(mode = "list", length = length(deltas)*length(hlas))
+
+for(i in 1:length(deltas)) {
+  
+  
+  for(j in hlas) {
+    
+    
+    theta_new <- theta
+    theta_new[j] <- theta_new[j]-delta[i]
+    
+    power_data[[deltas[i]]] <- powerHLA::get_power_analysis(
+      ns = c(10^2, 10^3, 10^4, 10^5, 10^6),
+      theta = theta_new,
+      gamma = gamma,
+      B = 500,
+      rng_draws = 5000,
+      alpha = rep(x = 1, times = K),
+      cores = 2,
+      verbose = T)
+    
+  }
+}
+
+
+
+
+
+```
+
+
+```{r}
+s <- powerHLA::get_power_summary(p = p)
+```
+
+
+
+```{r, fig.width=7, fig.height=3}
+
+(ggplot(data = s)+
+   geom_point(aes(y = tp_HDI95, x = N, col = allele))+
+   geom_line(aes(y = tp_HDI95, x = N, col = allele))+
+   ylim(c(0, 100))+
+   theme_bw()+
+   theme(legend.position = "none")+
+   ylab(label = "% effect found")+
+   scale_x_log10()+
+   annotation_logticks(base = 10, sides = "b"))
+|(ggplot(data = s)+
+     geom_point(aes(y = tp_HDI99, x = N, col = allele))+
+     geom_line(aes(y = tp_HDI99, x = N, col = allele))+
+     ylim(c(0, 100))+
+     theme_bw()+
+     theme(legend.position = "none")+
+     ylab(label = "% effect found")+
+     scale_x_log10()+
+     annotation_logticks(base = 10, sides = "b"))
+
+```
+
+### Power analysis with $\delta$ = 0.2
+
+
+### Power analysis with $\delta$ = 0.3
+
+
+### Power analysis with $\delta$ = 0.5
+
+
 
 ```{r, fig.width=8, fig.height=6}
 
@@ -261,16 +382,6 @@ q$diff_effect_HDI95_pct <- q$diff_effect_HDI95/max(p$B)*100
 
 ```
 
-```{r, fig.width=6, fig.height=3}
-
-ggplot(data = q)+
-  geom_point(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+
-  geom_line(aes(y = diff_effect_HDI95_pct, x = N, col = allele))+
-  ylim(c(0, 100))+
-  theme_bw()+
-  ylab(label = "% effect found")
-
-```
 
 ```{r, fig.width=7, fig.height=6}
 

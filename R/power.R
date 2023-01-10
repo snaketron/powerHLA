@@ -40,12 +40,6 @@ get_power <- function(gamma, rng_gamma, alpha, rng_draws) {
   d_diff$n_eff <- NULL
   colnames(d_diff) <- paste0("diff_", colnames(d_diff))
 
-  # delta_or
-  d_or <- data.frame(rstan::summary(s, par = "d_or", probs = probs)$summary)
-  d_or$Rhat <- NULL
-  d_or$n_eff <- NULL
-  colnames(d_or) <- paste0("or_", colnames(d_or))
-
   # delta_lor
   d_lor <- data.frame(rstan::summary(s, par = "d_lor", probs = probs)$summary)
   d_lor$Rhat <- NULL
@@ -60,7 +54,7 @@ get_power <- function(gamma, rng_gamma, alpha, rng_draws) {
   d_lor$N <- sum(rng_gamma[1,])
 
   # resulting data.frame
-  d <- cbind(p_rng, d_diff, d_or, d_lor)
+  d <- cbind(p_rng, d_diff, d_lor)
   d$obs_theta <- rep(x = gamma/sum(gamma), times = nrow(rng_gamma))
 
   # return
@@ -88,7 +82,7 @@ get_power_run <- function(N,
                           gamma,
                           alpha,
                           B,
-                          rng_draws = 10^4) {
+                          rng_draws) {
 
   K <- length(theta)
 
@@ -162,15 +156,13 @@ get_power_analysis <- function(ns,
 #' get_power_summary
 #'
 #' @param p, object returned by function get_power_analysis
-#' @param hdi_level, numeric between 0 and 1 (default=0.95), that defines the
-#' highest density interval to consider when summarizing parameter posteriors
 #'
 #' @return data.frame
 #' @export
 #'
 #' @examples
 #' get_power_summary(p)
-get_power_summary <- function(p, hdi_level = 0.95) {
+get_power_summary <- function(p) {
 
   # min(abs(x))
   get_min_abs <- function(x) {
@@ -181,18 +173,29 @@ get_power_summary <- function(p, hdi_level = 0.95) {
   w <- do.call(rbind, p)
 
   # check if effect is detected
-  w$diff_effect_HDI95 <- ifelse(test = w$diff_X2.5.<=0&
-                                  w$diff_X97.5.>=0,
-                                yes = 0, no = 1)
+  w$effect_captured_HDI95 <- ifelse(test = w$diff_X2.5.<=0&
+                                      w$diff_X97.5.>=0,
+                                    yes = 1, no = 0)
+  w$effect_captured_HDI99 <- ifelse(test = w$diff_X0.5.<=0&
+                                      w$diff_X99.5.>=0,
+                                    yes = 1, no = 0)
 
   # compute minimum effect
-  w$diff_min_effect_95 <- apply(
-    X = w[,c("diff_X2.5.", "diff_X97.5.")], MARGIN = 1,
-    FUN = get_min_abs)*w$diff_effect_HDI95
+  # w$diff_min_effect_95 <- apply(
+  #   X = w[,c("diff_X2.5.", "diff_X97.5.")], MARGIN = 1,
+  #   FUN = get_min_abs)*w$diff_effect_HDI95
 
   # compute power
-  s <- aggregate(diff_effect_HDI95~N+allele, data = w, FUN = sum)
-  s$diff_effect_HDI95_pct <- s$diff_effect_HDI95/max(w$B)*100
+  s_95 <- aggregate(zero_in_HDI95~N+allele, data = w, FUN = sum)
+  # s_95$tp_HDI95 <- s_95$effect_captured_HDI95/max(w$B)*100
+  # s_95$fp_HDI95 <- 100-s_95$tp_HDI95
+
+  s_99 <- aggregate(zero_in_HDI99~N+allele, data = w, FUN = sum)
+  # s_99$tp_HDI99 <- s_99$effect_captured_HDI99/max(w$B)*100
+  # s_99$fp_HDI99 <- 100-s_99$tp_HDI99
+
+  s <- merge(x = s_95, y = s_99, by = c("N", "allele"))
+  rm(s_95, s_99)
 
   return (s)
 }

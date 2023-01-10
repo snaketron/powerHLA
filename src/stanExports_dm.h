@@ -33,7 +33,7 @@ static int current_statement_begin__;
 stan::io::program_reader prog_reader__() {
     stan::io::program_reader reader;
     reader.add_event(0, 0, "start", "model_dm");
-    reader.add_event(28, 26, "end", "model_dm");
+    reader.add_event(26, 24, "end", "model_dm");
     return reader;
 }
 #include <stan_meta_header.hpp>
@@ -195,7 +195,6 @@ public:
         names__.push_back("p_rng");
         names__.push_back("p");
         names__.push_back("d_diff");
-        names__.push_back("d_or");
         names__.push_back("d_lor");
     }
     void get_dims(std::vector<std::vector<size_t> >& dimss__) const {
@@ -206,10 +205,6 @@ public:
         dims__.push_back(K);
         dimss__.push_back(dims__);
         dims__.resize(0);
-        dims__.push_back(K);
-        dimss__.push_back(dims__);
-        dims__.resize(0);
-        dims__.push_back(B);
         dims__.push_back(K);
         dimss__.push_back(dims__);
         dims__.resize(0);
@@ -263,38 +258,27 @@ public:
             stan::math::initialize(d_diff, DUMMY_VAR__);
             stan::math::fill(d_diff, DUMMY_VAR__);
             current_statement_begin__ = 13;
-            validate_non_negative_index("d_or", "K", K);
-            validate_non_negative_index("d_or", "B", B);
-            std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1> > d_or(B, Eigen::Matrix<double, Eigen::Dynamic, 1>(K));
-            stan::math::initialize(d_or, DUMMY_VAR__);
-            stan::math::fill(d_or, DUMMY_VAR__);
-            current_statement_begin__ = 14;
             validate_non_negative_index("d_lor", "K", K);
             validate_non_negative_index("d_lor", "B", B);
             std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1> > d_lor(B, Eigen::Matrix<double, Eigen::Dynamic, 1>(K));
             stan::math::initialize(d_lor, DUMMY_VAR__);
             stan::math::fill(d_lor, DUMMY_VAR__);
             // generated quantities statements
-            current_statement_begin__ = 17;
+            current_statement_begin__ = 16;
             stan::math::assign(p, dirichlet_rng(to_vector(gamma), base_rng__));
-            current_statement_begin__ = 20;
+            current_statement_begin__ = 19;
             for (int b = 1; b <= B; ++b) {
-                current_statement_begin__ = 21;
+                current_statement_begin__ = 20;
                 stan::model::assign(p_rng, 
                             stan::model::cons_list(stan::model::index_uni(b), stan::model::nil_index_list()), 
                             dirichlet_rng(add(to_vector(stan::model::rvalue(rng_gamma, stan::model::cons_list(stan::model::index_uni(b), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "rng_gamma")), alpha), base_rng__), 
                             "assigning variable p_rng");
-                current_statement_begin__ = 22;
-                stan::model::assign(d_or, 
-                            stan::model::cons_list(stan::model::index_uni(b), stan::model::nil_index_list()), 
-                            elt_divide(p, get_base1(p_rng, b, "p_rng", 1)), 
-                            "assigning variable d_or");
-                current_statement_begin__ = 23;
+                current_statement_begin__ = 21;
                 stan::model::assign(d_lor, 
                             stan::model::cons_list(stan::model::index_uni(b), stan::model::nil_index_list()), 
-                            stan::math::log(get_base1(d_or, b, "d_or", 1)), 
+                            stan::math::log(elt_divide(p, get_base1(p_rng, b, "p_rng", 1))), 
                             "assigning variable d_lor");
-                current_statement_begin__ = 24;
+                current_statement_begin__ = 22;
                 stan::model::assign(d_diff, 
                             stan::model::cons_list(stan::model::index_uni(b), stan::model::nil_index_list()), 
                             subtract(p, get_base1(p_rng, b, "p_rng", 1)), 
@@ -328,14 +312,6 @@ public:
                 }
             }
             current_statement_begin__ = 13;
-            size_t d_or_j_1_max__ = K;
-            size_t d_or_k_0_max__ = B;
-            for (size_t j_1__ = 0; j_1__ < d_or_j_1_max__; ++j_1__) {
-                for (size_t k_0__ = 0; k_0__ < d_or_k_0_max__; ++k_0__) {
-                    vars__.push_back(d_or[k_0__](j_1__));
-                }
-            }
-            current_statement_begin__ = 14;
             size_t d_lor_j_1_max__ = K;
             size_t d_lor_k_0_max__ = B;
             for (size_t j_1__ = 0; j_1__ < d_lor_j_1_max__; ++j_1__) {
@@ -401,15 +377,6 @@ public:
                 param_names__.push_back(param_name_stream__.str());
             }
         }
-        size_t d_or_j_1_max__ = K;
-        size_t d_or_k_0_max__ = B;
-        for (size_t j_1__ = 0; j_1__ < d_or_j_1_max__; ++j_1__) {
-            for (size_t k_0__ = 0; k_0__ < d_or_k_0_max__; ++k_0__) {
-                param_name_stream__.str(std::string());
-                param_name_stream__ << "d_or" << '.' << k_0__ + 1 << '.' << j_1__ + 1;
-                param_names__.push_back(param_name_stream__.str());
-            }
-        }
         size_t d_lor_j_1_max__ = K;
         size_t d_lor_k_0_max__ = B;
         for (size_t j_1__ = 0; j_1__ < d_lor_j_1_max__; ++j_1__) {
@@ -449,15 +416,6 @@ public:
             for (size_t k_0__ = 0; k_0__ < d_diff_k_0_max__; ++k_0__) {
                 param_name_stream__.str(std::string());
                 param_name_stream__ << "d_diff" << '.' << k_0__ + 1 << '.' << j_1__ + 1;
-                param_names__.push_back(param_name_stream__.str());
-            }
-        }
-        size_t d_or_j_1_max__ = K;
-        size_t d_or_k_0_max__ = B;
-        for (size_t j_1__ = 0; j_1__ < d_or_j_1_max__; ++j_1__) {
-            for (size_t k_0__ = 0; k_0__ < d_or_k_0_max__; ++k_0__) {
-                param_name_stream__.str(std::string());
-                param_name_stream__ << "d_or" << '.' << k_0__ + 1 << '.' << j_1__ + 1;
                 param_names__.push_back(param_name_stream__.str());
             }
         }

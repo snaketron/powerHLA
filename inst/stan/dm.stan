@@ -10,7 +10,6 @@ generated quantities {
   simplex [K] p_rng [B];
   simplex [K] p;
   vector [K] d_diff [B];
-  vector [K] d_or [B];
   vector [K] d_lor [B];
 
   // estimate p of background population (a=0)
@@ -19,8 +18,7 @@ generated quantities {
   // estimate p of each simulated sample
   for(b in 1:B) {
     p_rng[b] = dirichlet_rng(to_vector(rng_gamma[b,]) + alpha);
-    d_or[b] = p ./ p_rng[b];
-    d_lor[b] = log(d_or[b]);
+    d_lor[b] = log(p ./ p_rng[b]);
     d_diff[b] = p - p_rng[b];
   }
 }
