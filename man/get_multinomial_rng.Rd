@@ -4,24 +4,26 @@
 \alias{get_multinomial_rng}
 \title{get_multinomial_rng}
 \usage{
-get_multinomial_rng(af, B, N)
+get_multinomial_rng(theta, B, N, rng_seed = NULL)
 }
 \arguments{
-\item{af}{vector, allele frequencies, sum(af)=1}
+\item{theta}{vector, allele frequencies, sum(theta)=1}
 
 \item{B}{integer, number of simulated samples}
 
 \item{N}{integer, number of alleles in simulated sample}
+
+\item{rng_seed}{integer, seed to be used by rstan for rng}
 }
 \value{
 y_rng numeric matrix, number of alleles in each simulated sample
 }
 \description{
-This function simulates B samples (rows of counts of matrix y) from
+This function simulates B samples (rows of counts of matrix) from
 a multivariate distribution. Each count belongs to one of K categories
-(K columns of matrix y). The data is simulated based on the given
-simplex af and N number of total alleles.
+(K columns of matrix). The data is simulated based on the given
+simplex theta and N number of total alleles.
 }
 \examples{
-get_multinomial_rng(K=10, af=rep(0.1, times = 10), B=100, N=1000)
+get_multinomial_rng(theta=rep(0.1, times = 10), B=100, N=1000)
 }

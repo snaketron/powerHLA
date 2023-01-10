@@ -11,8 +11,8 @@ get_power_analysis(
   alpha,
   B,
   rng_draws = 10^4,
-  cores = 1,
-  verbose = T
+  rng_seed = NULL,
+  cores = 1
 )
 }
 \arguments{
@@ -20,15 +20,18 @@ get_power_analysis(
 
 \item{theta, }{vector of reals, allele frequencies of the simulated samples}
 
+\item{gamma, }{vector of integers, allele counts of the background sample}
+
+\item{alpha, }{vector of reals, Dirichlet distribution parameters (alpha)}
+
 \item{B, }{integer, number of simulations to use}
 
 \item{rng_draws, }{integer, number of posterior draws (default 10,000)}
 
-\item{cores, }{integer, number of cores for multicore execution}
+\item{rng_seed}{integer, seed to be used by rstan for rng}
 
-\item{y, }{vector of integers, allele counts of the background sample}
-
-\item{a, }{vector of reals, Dirichlet distribution parameters (alpha)}
+\item{cores, }{integer, number of cores for multicore execution
+l}
 }
 \description{
 get_power_analysis

@@ -4,13 +4,10 @@
 \alias{get_power_summary}
 \title{get_power_summary}
 \usage{
-get_power_summary(p, hdi_level = 0.95)
+get_power_summary(p)
 }
 \arguments{
 \item{p, }{object returned by function get_power_analysis}
-
-\item{hdi_level, }{numeric between 0 and 1 (default=0.95), that defines the
-highest density interval to consider when summarizing parameter posteriors}
 }
 \value{
 data.frame

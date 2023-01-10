@@ -10,7 +10,11 @@
 #' @export
 #'
 #' @examples
-get_power <- function(gamma, rng_gamma, alpha, rng_draws) {
+get_power <- function(gamma,
+                      rng_gamma,
+                      alpha,
+                      rng_draws) {
+
   s <- rstan::sampling(
     object = stanmodels$dm,
     data = list(K=ncol(rng_gamma),
@@ -67,11 +71,11 @@ get_power <- function(gamma, rng_gamma, alpha, rng_draws) {
 #'
 #' @param N, integer, total number of alleles in simulated samples
 #' @param theta, vector of reals, allele frequencies of the simulated samples
+#' @param gamma, vector of integers, allele counts of the background sample
+#' @param alpha, vector of reals, Dirichlet distribution parameters (alpha)
 #' @param B, integer, number of simulations to use
-#' @param y, vector of integers, allele counts of the background sample
-#' @param a, vector of reals, Dirichlet distribution parameters (alpha)
 #' @param rng_draws, integer, number of posterior draws (default 10,000)
-#' @param cores, integer, number of cores for multicore execution
+#' @param rng_seed integer, seed to be used by rstan for rng
 #'
 #' @return
 #' @export
@@ -82,7 +86,8 @@ get_power_run <- function(N,
                           gamma,
                           alpha,
                           B,
-                          rng_draws) {
+                          rng_draws,
+                          rng_seed) {
 
   K <- length(theta)
 
@@ -90,7 +95,8 @@ get_power_run <- function(N,
   rng_gamma <- powerHLA::get_multinomial_rng(
     theta = theta,
     B = B,
-    N = N)
+    N = N,
+    rng_seed = rng_seed)
   colnames(rng_gamma) <- paste0("K", 1:ncol(rng_gamma))
 
 
@@ -106,16 +112,18 @@ get_power_run <- function(N,
 }
 
 
+
 #' get_power_analysis
 #'
 #' @param ns, integer vector, total number of alleles in simulated samples
 #' @param theta, vector of reals, allele frequencies of the simulated samples
+#' @param gamma, vector of integers, allele counts of the background sample
+#' @param alpha, vector of reals, Dirichlet distribution parameters (alpha)
 #' @param B, integer, number of simulations to use
-#' @param y, vector of integers, allele counts of the background sample
-#' @param a, vector of reals, Dirichlet distribution parameters (alpha)
 #' @param rng_draws, integer, number of posterior draws (default 10,000)
+#' @param rng_seed integer, seed to be used by rstan for rng
 #' @param cores, integer, number of cores for multicore execution
-#'
+#'l
 #' @return
 #' @export
 #'
@@ -126,8 +134,8 @@ get_power_analysis <- function(ns,
                                alpha,
                                B,
                                rng_draws = 10^4,
-                               cores = 1,
-                               verbose = T) {
+                               rng_seed = NULL,
+                               cores = 1) {
 
   # schedule cores
   future::plan(future::multisession, workers = cores)
@@ -141,6 +149,7 @@ get_power_analysis <- function(ns,
     alpha = alpha,
     B = B,
     rng_draws = rng_draws,
+    rng_seed = rng_seed,
     future.seed = TRUE)
 
   # list names -> ns entries
@@ -173,12 +182,12 @@ get_power_summary <- function(p) {
   w <- do.call(rbind, p)
 
   # check if effect is detected
-  w$effect_captured_HDI95 <- ifelse(test = w$diff_X2.5.<=0&
-                                      w$diff_X97.5.>=0,
-                                    yes = 1, no = 0)
-  w$effect_captured_HDI99 <- ifelse(test = w$diff_X0.5.<=0&
-                                      w$diff_X99.5.>=0,
-                                    yes = 1, no = 0)
+  w$zero_in_HDI95 <- ifelse(test = w$diff_X2.5.<=0&
+                              w$diff_X97.5.>=0,
+                            yes = 1, no = 0)
+  w$zero_in_HDI99 <- ifelse(test = w$diff_X0.5.<=0&
+                              w$diff_X99.5.>=0,
+                            yes = 1, no = 0)
 
   # compute minimum effect
   # w$diff_min_effect_95 <- apply(
@@ -187,16 +196,63 @@ get_power_summary <- function(p) {
 
   # compute power
   s_95 <- aggregate(zero_in_HDI95~N+allele, data = w, FUN = sum)
-  # s_95$tp_HDI95 <- s_95$effect_captured_HDI95/max(w$B)*100
+  s_95$zero_pct_HDI95 <- s_95$zero_in_HDI95/max(w$B)*100
   # s_95$fp_HDI95 <- 100-s_95$tp_HDI95
 
   s_99 <- aggregate(zero_in_HDI99~N+allele, data = w, FUN = sum)
-  # s_99$tp_HDI99 <- s_99$effect_captured_HDI99/max(w$B)*100
+  s_99$zero_pct_HDI99 <- s_99$zero_in_HDI99/max(w$B)*100
   # s_99$fp_HDI99 <- 100-s_99$tp_HDI99
+
+
+  # compute distribution of deltas
+  d_95 <- aggregate(diff_mean~N+allele, data = w,
+                    FUN = get_hdi, hdi_level = 0.95)
+  d_95$mean_delta_L95 <- d_95$diff_mean[, 1]
+  d_95$mean_delta_H95 <- d_95$diff_mean[, 2]
+  d_95$diff_mean <- NULL
 
   s <- merge(x = s_95, y = s_99, by = c("N", "allele"))
   rm(s_95, s_99)
 
+  s <- merge(x = s, y = d_95, by = c("N", "allele"))
+
   return (s)
 }
 
+
+
+#' get_hdi
+#' Computes HDI for vector vec and hdi_level (e.g. 0.95). Taken (and renamed)
+#' from "Doing Bayesian Analysis", section 25.2.3 R code for computing HDI of
+#' a MCMC sample
+#'
+#' @param vec numeric vector
+#' @param hdi_level number, highest density interval (HDI) (default = 0.95)
+#'
+#' @return vector with two elements (low, high interval of HDI)
+#'
+#' @examples
+#'
+get_hdi <- function(vec, hdi_level) {
+  # Computes highest density interval from a sample of representative values,
+  # estimated as shortest credible interval.
+  # Arguments:
+  # sampleVec
+  # is a vector of representative values from a probability distribution.
+  # credMass
+  # is a scalar between 0 and 1, indicating the mass within the credible
+  # interval that is to be estimated.
+  # Value:
+  # HDIlim is a vector containing the limits of the HDI
+  sortedPts <- sort(vec)
+  ciIdxInc <- floor(hdi_level * length(sortedPts))
+  nCIs = length(sortedPts) - ciIdxInc
+  ciWidth = rep(0 , nCIs)
+  for (i in 1:nCIs) {
+    ciWidth[i] = sortedPts[i + ciIdxInc] - sortedPts[i]
+  }
+  HDImin = sortedPts[which.min(ciWidth)]
+  HDImax = sortedPts[which.min(ciWidth) + ciIdxInc]
+  HDIlim = c(HDImin, HDImax)
+  return(HDIlim)
+}

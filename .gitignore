@@ -38,4 +38,4 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 
-/working_dir/
+working_dir/

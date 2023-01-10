@@ -4,22 +4,22 @@
 \alias{get_power_run}
 \title{get_power_run}
 \usage{
-get_power_run(N, theta, gamma, alpha, B, rng_draws = 10^4)
+get_power_run(N, theta, gamma, alpha, B, rng_draws, rng_seed)
 }
 \arguments{
 \item{N, }{integer, total number of alleles in simulated samples}
 
 \item{theta, }{vector of reals, allele frequencies of the simulated samples}
 
+\item{gamma, }{vector of integers, allele counts of the background sample}
+
+\item{alpha, }{vector of reals, Dirichlet distribution parameters (alpha)}
+
 \item{B, }{integer, number of simulations to use}
 
 \item{rng_draws, }{integer, number of posterior draws (default 10,000)}
 
-\item{y, }{vector of integers, allele counts of the background sample}
-
-\item{a, }{vector of reals, Dirichlet distribution parameters (alpha)}
-
-\item{cores, }{integer, number of cores for multicore execution}
+\item{rng_seed}{integer, seed to be used by rstan for rng}
 }
 \description{
 get_power_run
